@@ -25,6 +25,14 @@
 
 using namespace R5900;
 
+// Constant propagation globals
+GPR_reg64 g_cpuConstRegs[32];
+u32 g_cpuHasConstReg = 0;
+u32 g_cpuFlushedConstReg = 0;
+bool g_cpuFlushedPC = false;
+bool g_cpuFlushedCode = false;
+bool g_maySignalException = false;
+
 static bool eeRecNeedsReset = false;
 static bool eeCpuExecuting = false;
 static bool eeRecExitRequested = false;
@@ -382,18 +390,86 @@ static void _DynGen_Dispatchers()
 
 static void recRecompile(const u32 startpc)
 {
-	// TODO: Implement full recompilation
-	// For now, this is a stub
+	// Initialize constant propagation state
+	g_cpuHasConstReg = 0;
+	g_cpuFlushedConstReg = 0;
+	std::memset(g_cpuConstRegs, 0, sizeof(g_cpuConstRegs));
+
+	// Initialize register allocation
+	_initArm64regs();
+	_initQregs();
+
+	// Start code generation
+	armAsm->Reset();
+	
+	u32 pc = startpc;
+	u32 targetpc = startpc;
+	int branch = 0;
+	bool recompiling = true;
+
+	while (recompiling)
+	{
+		// Check if we have enough space
+		if (recPtr >= recPtrEnd - 0x10000)
+		{
+			Console.Error("R5900: Out of recompile memory");
+			recClear();
+			return;
+		}
+
+		// Get instruction
+		u32 code = memRead32(pc);
+		u32 opcode = code >> 26;
+
+		// Dispatch to appropriate recompiler
+		// For now, this is a simplified version
+		// A full implementation would use the opcode table
+		
+		pc += 4;
+
+		// Simple block termination conditions
+		if (branch != 0)
+		{
+			recompiling = false;
+		}
+		
+		// Limit block size
+		if ((pc - startpc) > 1000)
+		{
+			recompiling = false;
+		}
+	}
+
+	// Flush all registers
+	_flushArm64regs();
+	_flushConstRegs();
+
+	// Return to dispatcher
+	armEmitJmp(DispatcherReg);
+
+	// Update block info
+	// TODO: Implement proper block metadata update
 }
 
 static void dyna_block_discard(u32 start, u32 sz)
 {
-	// TODO: Implement block discard
+	// Clear the recompiled block from the LUT
+	u32 page = start >> 16;
+	for (u32 i = 0; i < sz; i += 4)
+	{
+		u32 addr = (start + i) >> 16;
+		if (addr == page)
+		{
+			recLUT[addr] = 0;
+		}
+	}
 }
 
 static void dyna_page_reset(u32 start, u32 sz)
 {
-	// TODO: Implement page reset
+	// Reset the page in the LUT
+	u32 page = start >> 16;
+	recLUT[page] = 0;
 }
 
 static void recExitExecution()
@@ -513,44 +589,182 @@ void recMTC2(int info) { REC_FUNC(MTC2); }
 void recCFC2(int info) { REC_FUNC_DEL(CFC2, _Rt_); }
 void recCTC2(int info) { REC_FUNC(CTC2); }
 
-// Stub implementations for constant propagation
+// Constant propagation implementations
 void recRecompileCodeConst0(R5900FNPTR constcode, R5900FNPTR_INFO constscode, R5900FNPTR_INFO consttcode, R5900FNPTR_INFO noconstcode, int xmminfo)
 {
-	recCall(Interp::UNKNOWN);
+	if (GPR_IS_CONST2(_Rs_, _Rt_))
+	{
+		constcode();
+	}
+	else if (GPR_IS_CONST1(_Rs_))
+	{
+		constscode(xmminfo);
+	}
+	else if (GPR_IS_CONST1(_Rt_))
+	{
+		consttcode(xmminfo);
+	}
+	else
+	{
+		noconstcode(xmminfo);
+	}
 }
 
 void recRecompileCodeConst1(R5900FNPTR constcode, R5900FNPTR noconstcode, int xmminfo)
 {
-	recCall(Interp::UNKNOWN);
+	if (GPR_IS_CONST1(_Rs_))
+	{
+		constcode();
+	}
+	else
+	{
+		noconstcode(xmminfo);
+	}
 }
 
 void recRecompileCodeConst2(R5900FNPTR constcode, R5900FNPTR noconstcode, int xmminfo)
 {
-	recCall(Interp::UNKNOWN);
+	if (GPR_IS_CONST1(_Rt_))
+	{
+		constcode();
+	}
+	else
+	{
+		noconstcode(xmminfo);
+	}
 }
 
 void recRecompileCodeConst3(R5900FNPTR constcode, R5900FNPTR constscode, R5900FNPTR consttcode, R5900FNPTR noconstcode, int LOHI)
 {
-	recCall(Interp::UNKNOWN);
+	if (GPR_IS_CONST2(_Rs_, _Rt_))
+	{
+		constcode();
+	}
+	else if (GPR_IS_CONST1(_Rs_))
+	{
+		constscode();
+	}
+	else if (GPR_IS_CONST1(_Rt_))
+	{
+		consttcode();
+	}
+	else
+	{
+		noconstcode();
+	}
 }
 
-void _deleteEEreg(int reg, int flush) {}
-void _flushEEregs() {}
-void _flushConstRegs() {}
-void _flushConstReg(int reg) {}
+void _deleteEEreg(int reg, int flush)
+{
+	if (flush)
+	{
+		_eeFlushConstReg(reg);
+	}
+	else
+	{
+		GPR_DEL_CONST(reg);
+	}
+}
 
-void _eeMoveGPRtoR(const a64::Register& to, int fromgpr) {}
-void _eeMoveGPRtoM(const a64::MemOperand& to, int fromgpr) {}
-void _eeMoveGPRtoR64(const a64::Register& to, int fromgpr) {}
+void _flushEEregs()
+{
+	_eeFlushConstRegs();
+	_flushArm64regs();
+}
 
-void _eeFlushConstReg(int reg) {}
-void _eeFlushConstRegs() {}
+void _flushConstRegs()
+{
+	_eeFlushConstRegs();
+}
 
-void _eeDeleteReg(int reg, int flush) {}
-void _eeFlushCall(int flushtype) {}
-void _eeFlushAllDirty() {}
+void _flushConstReg(int reg)
+{
+	_eeFlushConstReg(reg);
+}
 
-void _eeOnWriteReg(int reg) {}
+void _eeFlushConstReg(int reg)
+{
+	if (reg < 32 && GPR_IS_DIRTY_CONST(reg))
+	{
+		// Write back constant to memory
+		armStore(PTR_CPU(cpuRegs.GPR.r[reg].UD[0]), g_cpuConstRegs[reg].UD[0]);
+		g_cpuFlushedConstReg |= (1 << reg);
+	}
+}
+
+void _eeFlushConstRegs()
+{
+	for (int i = 0; i < 32; i++)
+	{
+		if (GPR_IS_DIRTY_CONST(i))
+		{
+			armStore(PTR_CPU(cpuRegs.GPR.r[i].UD[0]), g_cpuConstRegs[i].UD[0]);
+			g_cpuFlushedConstReg |= (1 << i);
+		}
+	}
+}
+
+void _eeMoveGPRtoR(const a64::Register& to, int fromgpr)
+{
+	if (GPR_IS_CONST1(fromgpr))
+	{
+		armAsm->Mov(to, g_cpuConstRegs[fromgpr].UL[0]);
+	}
+	else
+	{
+		armLoad(to, PTR_CPU(cpuRegs.GPR.r[fromgpr].UL[0]));
+	}
+}
+
+void _eeMoveGPRtoM(const a64::MemOperand& to, int fromgpr)
+{
+	if (GPR_IS_CONST1(fromgpr))
+	{
+		armStore(to, g_cpuConstRegs[fromgpr].UL[0]);
+	}
+	else
+	{
+		armLoad(a64::XRegister(EEREC_S), PTR_CPU(cpuRegs.GPR.r[fromgpr].UL[0]));
+		armStore(to, a64::XRegister(EEREC_S));
+	}
+}
+
+void _eeMoveGPRtoR64(const a64::Register& to, int fromgpr)
+{
+	if (GPR_IS_CONST1(fromgpr))
+	{
+		armAsm->Mov(to, g_cpuConstRegs[fromgpr].UD[0]);
+	}
+	else
+	{
+		armLoad(to, PTR_CPU(cpuRegs.GPR.r[fromgpr].UD[0]));
+	}
+}
+
+void _eeDeleteReg(int reg, int flush)
+{
+	_deleteEEreg(reg, flush);
+}
+
+void _eeFlushCall(int flushtype)
+{
+	_eeFlushConstRegs();
+	_flushArm64regs();
+}
+
+void _eeFlushAllDirty()
+{
+	_eeFlushConstRegs();
+	_flushArm64regs();
+}
+
+void _eeOnWriteReg(int reg)
+{
+	if (reg < 32)
+	{
+		GPR_DEL_CONST(reg);
+	}
+}
 
 void recCall(void (*func)())
 {

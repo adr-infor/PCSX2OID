@@ -10,6 +10,14 @@
 #include "Common.h"
 #include "VMManager.h"
 #include "R5900.h"
+#include "iR5900Arit.h"
+#include "iR5900Shift.h"
+#include "iR5900Move.h"
+#include "iR5900LoadStore.h"
+#include "iR5900Branch.h"
+#include "iR5900Jump.h"
+#include "iR5900AritImm.h"
+#include "iR5900MultDiv.h"
 
 #include "common/AlignedMalloc.h"
 #include "common/Perf.h"
@@ -406,85 +414,85 @@ static u32 scaleblockcycles()
 
 // Basic stub implementations for now - these need full implementation
 
-void recADD(int info) { REC_FUNC_DEL(ADD, _Rt_); }
-void recADDU(int info) { REC_FUNC_DEL(ADDU, _Rt_); }
-void recDADDI(int info) { REC_FUNC_DEL(DADDI, _Rt_); }
-void recDADDIU(int info) { REC_FUNC_DEL(DADDIU, _Rt_); }
-void recDADD(int info) { REC_FUNC_DEL(DADD, _Rd_); }
-void recDADDU(int info) { REC_FUNC_DEL(DADDU, _Rd_); }
-void recSUB(int info) { REC_FUNC_DEL(SUB, _Rd_); }
-void recSUBU(int info) { REC_FUNC_DEL(SUBU, _Rd_); }
-void recDSUBI(int info) { REC_FUNC_DEL(DSUBI, _Rt_); }
-void recDSUBIU(int info) { REC_FUNC_DEL(DSUBIU, _Rt_); }
-void recDSUB(int info) { REC_FUNC_DEL(DSUB, _Rd_); }
-void recDSUBU(int info) { REC_FUNC_DEL(DSUBU, _Rd_); }
-void recAND(int info) { REC_FUNC_DEL(AND, _Rd_); }
-void recOR(int info) { REC_FUNC_DEL(OR, _Rd_); }
-void recXOR(int info) { REC_FUNC_DEL(XOR, _Rd_); }
-void recNOR(int info) { REC_FUNC_DEL(NOR, _Rd_); }
-void recSLT(int info) { REC_FUNC_DEL(SLT, _Rd_); }
-void recSLTI(int info) { REC_FUNC_DEL(SLTI, _Rt_); }
-void recSLTIU(int info) { REC_FUNC_DEL(SLTIU, _Rt_); }
-void recSLTU(int info) { REC_FUNC_DEL(SLTU, _Rd_); }
+void recADD(int info) { R5900::Dynarec::OpcodeImpl::recADD(info); }
+void recADDU(int info) { R5900::Dynarec::OpcodeImpl::recADDU(info); }
+void recDADDI(int info) { R5900::Dynarec::OpcodeImpl::recDADDI(info); }
+void recDADDIU(int info) { R5900::Dynarec::OpcodeImpl::recDADDIU(info); }
+void recDADD(int info) { R5900::Dynarec::OpcodeImpl::recDADD(info); }
+void recDADDU(int info) { R5900::Dynarec::OpcodeImpl::recDADDU(info); }
+void recSUB(int info) { R5900::Dynarec::OpcodeImpl::recSUB(info); }
+void recSUBU(int info) { R5900::Dynarec::OpcodeImpl::recSUBU(info); }
+void recDSUBI(int info) { R5900::Dynarec::OpcodeImpl::recDSUBI(info); }
+void recDSUBIU(int info) { R5900::Dynarec::OpcodeImpl::recDSUBIU(info); }
+void recDSUB(int info) { R5900::Dynarec::OpcodeImpl::recDSUB(info); }
+void recDSUBU(int info) { R5900::Dynarec::OpcodeImpl::recDSUBU(info); }
+void recAND(int info) { R5900::Dynarec::OpcodeImpl::recAND(info); }
+void recOR(int info) { R5900::Dynarec::OpcodeImpl::recOR(info); }
+void recXOR(int info) { R5900::Dynarec::OpcodeImpl::recXOR(info); }
+void recNOR(int info) { R5900::Dynarec::OpcodeImpl::recNOR(info); }
+void recSLT(int info) { R5900::Dynarec::OpcodeImpl::recSLT(info); }
+void recSLTI(int info) { R5900::Dynarec::OpcodeImpl::recSLTI(info); }
+void recSLTIU(int info) { R5900::Dynarec::OpcodeImpl::recSLTIU(info); }
+void recSLTU(int info) { R5900::Dynarec::OpcodeImpl::recSLTU(info); }
 
-void recSLL(int info) { REC_FUNC_DEL(SLL, _Rd_); }
-void recSRL(int info) { REC_FUNC_DEL(SRL, _Rd_); }
-void recSRA(int info) { REC_FUNC_DEL(SRA, _Rd_); }
-void recSLLV(int info) { REC_FUNC_DEL(SLLV, _Rd_); }
-void recSRLV(int info) { REC_FUNC_DEL(SRLV, _Rd_); }
-void recSRAV(int info) { REC_FUNC_DEL(SRAV, _Rd_); }
+void recSLL(int info) { R5900::Dynarec::OpcodeImpl::recSLL(info); }
+void recSRL(int info) { R5900::Dynarec::OpcodeImpl::recSRL(info); }
+void recSRA(int info) { R5900::Dynarec::OpcodeImpl::recSRA(info); }
+void recSLLV(int info) { R5900::Dynarec::OpcodeImpl::recSLLV(info); }
+void recSRLV(int info) { R5900::Dynarec::OpcodeImpl::recSRLV(info); }
+void recSRAV(int info) { R5900::Dynarec::OpcodeImpl::recSRAV(info); }
 
-void recMULT(int info) { REC_FUNC(MULT); }
-void recMULTU(int info) { REC_FUNC(MULTU); }
-void recDMULT(int info) { REC_FUNC(DMULT); }
-void recDMULTU(int info) { REC_FUNC(DMULTU); }
-void recDIV(int info) { REC_FUNC(DIV); }
-void recDIVU(int info) { REC_FUNC(DIVU); }
-void recDDIV(int info) { REC_FUNC(DDIV); }
-void recDDIVU(int info) { REC_FUNC(DDIVU); }
+void recMULT(int info) { R5900::Dynarec::OpcodeImpl::recMULT(info); }
+void recMULTU(int info) { R5900::Dynarec::OpcodeImpl::recMULTU(info); }
+void recDMULT(int info) { R5900::Dynarec::OpcodeImpl::recDMULT(info); }
+void recDMULTU(int info) { R5900::Dynarec::OpcodeImpl::recDMULTU(info); }
+void recDIV(int info) { R5900::Dynarec::OpcodeImpl::recDIV(info); }
+void recDIVU(int info) { R5900::Dynarec::OpcodeImpl::recDIVU(info); }
+void recDDIV(int info) { R5900::Dynarec::OpcodeImpl::recDDIV(info); }
+void recDDIVU(int info) { R5900::Dynarec::OpcodeImpl::recDDIVU(info); }
 
 void recMFC0(int info) { REC_FUNC_DEL(MFC0, _Rt_); }
 void recMTC0(int info) { REC_FUNC(MTC0); }
 
-void recBEQ(int info) { REC_SYS_DEL(BEQ, _Rt_); }
-void recBNE(int info) { REC_SYS_DEL(BNE, _Rt_); }
-void recBLTZ(int info) { REC_SYS_DEL(BLTZ, _Rs_); }
-void recBGEZ(int info) { REC_SYS_DEL(BGEZ, _Rs_); }
-void recBLEZ(int info) { REC_SYS_DEL(BLEZ, _Rs_); }
-void recBGTZ(int info) { REC_SYS_DEL(BGTZ, _Rs_); }
-void recBEQL(int info) { REC_SYS_DEL(BEQL, _Rt_); }
-void recBNEL(int info) { REC_SYS_DEL(BNEL, _Rt_); }
-void recBLTZL(int info) { REC_SYS_DEL(BLTZL, _Rs_); }
-void recBGEZL(int info) { REC_SYS_DEL(BGEZL, _Rs_); }
-void recBLEZL(int info) { REC_SYS_DEL(BLEZL, _Rs_); }
-void recBGTZL(int info) { REC_SYS_DEL(BGTZL, _Rs_); }
+void recBEQ(int info) { R5900::Dynarec::OpcodeImpl::recBEQ(info); }
+void recBNE(int info) { R5900::Dynarec::OpcodeImpl::recBNE(info); }
+void recBLTZ(int info) { R5900::Dynarec::OpcodeImpl::recBLTZ(info); }
+void recBGEZ(int info) { R5900::Dynarec::OpcodeImpl::recBGEZ(info); }
+void recBLEZ(int info) { R5900::Dynarec::OpcodeImpl::recBLEZ(info); }
+void recBGTZ(int info) { R5900::Dynarec::OpcodeImpl::recBGTZ(info); }
+void recBEQL(int info) { R5900::Dynarec::OpcodeImpl::recBEQL(info); }
+void recBNEL(int info) { R5900::Dynarec::OpcodeImpl::recBNEL(info); }
+void recBLTZL(int info) { R5900::Dynarec::OpcodeImpl::recBLTZL(info); }
+void recBGEZL(int info) { R5900::Dynarec::OpcodeImpl::recBGEZL(info); }
+void recBLEZL(int info) { R5900::Dynarec::OpcodeImpl::recBLEZL(info); }
+void recBGTZL(int info) { R5900::Dynarec::OpcodeImpl::recBGTZL(info); }
 
-void recJ(int info) { REC_SYS(J); }
-void recJAL(int info) { REC_SYS(JAL); }
-void recJR(int info) { REC_SYS_DEL(JR, _Rs_); }
-void recJALR(int info) { REC_SYS_DEL(JALR, _Rs_); }
+void recJ(int info) { R5900::Dynarec::OpcodeImpl::recJ(info); }
+void recJAL(int info) { R5900::Dynarec::OpcodeImpl::recJAL(info); }
+void recJR(int info) { R5900::Dynarec::OpcodeImpl::recJR(info); }
+void recJALR(int info) { R5900::Dynarec::OpcodeImpl::recJALR(info); }
 
-void recLB(int info) { REC_FUNC_DEL(LB, _Rt_); }
-void recLBU(int info) { REC_FUNC_DEL(LBU, _Rt_); }
-void recLH(int info) { REC_FUNC_DEL(LH, _Rt_); }
-void recLHU(int info) { REC_FUNC_DEL(LHU, _Rt_); }
-void recLW(int info) { REC_FUNC_DEL(LW, _Rt_); }
-void recLWL(int info) { REC_FUNC_DEL(LWL, _Rt_); }
-void recLWR(int info) { REC_FUNC_DEL(LWR, _Rt_); }
-void recLD(int info) { REC_FUNC_DEL(LD, _Rt_); }
-void recLDL(int info) { REC_FUNC_DEL(LDL, _Rt_); }
-void recLDR(int info) { REC_FUNC_DEL(LDR, _Rt_); }
-void recLQ(int info) { REC_FUNC_DEL(LQ, _Rt_); }
+void recLB(int info) { R5900::Dynarec::OpcodeImpl::recLB(info); }
+void recLBU(int info) { R5900::Dynarec::OpcodeImpl::recLBU(info); }
+void recLH(int info) { R5900::Dynarec::OpcodeImpl::recLH(info); }
+void recLHU(int info) { R5900::Dynarec::OpcodeImpl::recLHU(info); }
+void recLW(int info) { R5900::Dynarec::OpcodeImpl::recLW(info); }
+void recLWL(int info) { R5900::Dynarec::OpcodeImpl::recLWL(info); }
+void recLWR(int info) { R5900::Dynarec::OpcodeImpl::recLWR(info); }
+void recLD(int info) { R5900::Dynarec::OpcodeImpl::recLD(info); }
+void recLDL(int info) { R5900::Dynarec::OpcodeImpl::recLDL(info); }
+void recLDR(int info) { R5900::Dynarec::OpcodeImpl::recLDR(info); }
+void recLQ(int info) { R5900::Dynarec::OpcodeImpl::recLQ(info); }
 
-void recSB(int info) { REC_FUNC(SB); }
-void recSH(int info) { REC_FUNC(SH); }
-void recSW(int info) { REC_FUNC(SW); }
-void recSWL(int info) { REC_FUNC(SWL); }
-void recSWR(int info) { REC_FUNC(SWR); }
-void recSD(int info) { REC_FUNC(SD); }
-void recSDL(int info) { REC_FUNC(SDL); }
-void recSDR(int info) { REC_FUNC(SDR); }
-void recSQ(int info) { REC_FUNC(SQ); }
+void recSB(int info) { R5900::Dynarec::OpcodeImpl::recSB(info); }
+void recSH(int info) { R5900::Dynarec::OpcodeImpl::recSH(info); }
+void recSW(int info) { R5900::Dynarec::OpcodeImpl::recSW(info); }
+void recSWL(int info) { R5900::Dynarec::OpcodeImpl::recSWL(info); }
+void recSWR(int info) { R5900::Dynarec::OpcodeImpl::recSWR(info); }
+void recSD(int info) { R5900::Dynarec::OpcodeImpl::recSD(info); }
+void recSDL(int info) { R5900::Dynarec::OpcodeImpl::recSDL(info); }
+void recSDR(int info) { R5900::Dynarec::OpcodeImpl::recSDR(info); }
+void recSQ(int info) { R5900::Dynarec::OpcodeImpl::recSQ(info); }
 
 void recLWC1(int info) { REC_FUNC_DEL(LWC1, _Ft_); }
 void recSWC1(int info) { REC_FUNC(SWC1); }
@@ -493,11 +501,11 @@ void recMFC1(int info) { REC_FUNC_DEL(MFC1, _Ft_); }
 void recCTC1(int info) { REC_FUNC(CTC1); }
 void recCFC1(int info) { REC_FUNC_DEL(CFC1, _Ft_); }
 
-void recMOV(int info) { REC_FUNC_DEL(MOV, _Rd_); }
-void recMFHI(int info) { REC_FUNC_DEL(MFHI, _Rd_); }
-void recMTHI(int info) { REC_FUNC(MTHI); }
-void recMFLO(int info) { REC_FUNC_DEL(MFLO, _Rd_); }
-void recMTLO(int info) { REC_FUNC(MTLO); }
+void recMOV(int info) { R5900::Dynarec::OpcodeImpl::recMOV(info); }
+void recMFHI(int info) { R5900::Dynarec::OpcodeImpl::recMFHI(info); }
+void recMTHI(int info) { R5900::Dynarec::OpcodeImpl::recMTHI(info); }
+void recMFLO(int info) { R5900::Dynarec::OpcodeImpl::recMFLO(info); }
+void recMTLO(int info) { R5900::Dynarec::OpcodeImpl::recMTLO(info); }
 
 void recMFBPC(int info) { REC_FUNC_DEL(MFBPC, _Rt_); }
 void recMFC2(int info) { REC_FUNC_DEL(MFC2, _Rt_); }
@@ -611,4 +619,5 @@ R5900cpu jitA64Cpu = {
 	recSafeExitExecution,
 	recCancelInstruction,
 	recClear
+};
 };

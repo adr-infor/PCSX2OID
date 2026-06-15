@@ -1061,12 +1061,30 @@ set(pcsx2arm64Sources
 	arm64/VixlHelpers.cpp
 	arm64/iR5900.cpp
 	arm64/recVTLB.cpp
+	arm64/iCore.cpp
+	arm64/iR5900Arit.cpp
+	arm64/iR5900Shift.cpp
+	arm64/iR5900Move.cpp
+	arm64/iR5900LoadStore.cpp
+	arm64/iR5900Branch.cpp
+	arm64/iR5900Jump.cpp
+	arm64/iR5900AritImm.cpp
+	arm64/iR5900MultDiv.cpp
 #	arm64/RecStubs.cpp
 	)
 
 set(pcsx2arm64Headers
 	arm64/VixlHelpers.h
 	arm64/iR5900.h
+	arm64/iCore.h
+	arm64/iR5900Arit.h
+	arm64/iR5900Shift.h
+	arm64/iR5900Move.h
+	arm64/iR5900LoadStore.h
+	arm64/iR5900Branch.h
+	arm64/iR5900Jump.h
+	arm64/iR5900AritImm.h
+	arm64/iR5900MultDiv.h
 )
 
 # These ones benefit a lot from LTO

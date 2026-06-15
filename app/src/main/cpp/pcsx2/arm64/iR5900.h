@@ -8,6 +8,7 @@
 #include "R5900_Profiler.h"
 #include "VU.h"
 #include "VixlHelpers.h"
+#include "iCore.h"
 
 // Register containing a pointer to our fastmem (4GB) area
 #define RFASTMEMBASE a64::x28

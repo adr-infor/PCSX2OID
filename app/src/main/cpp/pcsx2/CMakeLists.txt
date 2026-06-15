@@ -1060,6 +1060,7 @@ set(pcsx2arm64Sources
 	arm64/Vif_UnpackNEON.cpp
 	arm64/VixlHelpers.cpp
 	arm64/iR5900.cpp
+	arm64/recVTLB.cpp
 #	arm64/RecStubs.cpp
 	)
 

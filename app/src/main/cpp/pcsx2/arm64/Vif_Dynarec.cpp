@@ -214,28 +214,28 @@ __fi void VifUnpackNEON_Dynarec::SetMasks(int cS) const
 
 	if ((doMask && m2) || doMode)
 	{
-		armLoadPtr(xmmRow, &vif.MaskRow);
+		armLoadPtr(vifRow, &vif.MaskRow);
 		MSKPATH3_LOG("Moving row");
 	}
 	if (doMask && m3)
 	{
 		VIF_LOG("Merging Cols");
-		armLoadPtr(xmmCol0, &vif.MaskCol);
+		armLoadPtr(vifCol0, &vif.MaskCol);
 		if ((cS >= 2) && (m3 & 0x0000ff00))
-			armAsm->Dup(xmmCol1.V4S(), xmmCol0.V4S(), 1);
+			armAsm->Dup(vifCol1.V4S(), vifCol0.V4S(), 1);
 		if ((cS >= 3) && (m3 & 0x00ff0000))
-			armAsm->Dup(xmmCol2.V4S(), xmmCol0.V4S(), 2);
+			armAsm->Dup(vifCol2.V4S(), vifCol0.V4S(), 2);
 		if ((cS >= 4) && (m3 & 0xff000000))
-			armAsm->Dup(xmmCol3.V4S(), xmmCol0.V4S(), 3);
+			armAsm->Dup(vifCol3.V4S(), vifCol0.V4S(), 3);
 		if ((cS >= 1) && (m3 & 0x000000ff))
-			armAsm->Dup(xmmCol0.V4S(), xmmCol0.V4S(), 0);
+			armAsm->Dup(vifCol0.V4S(), vifCol0.V4S(), 0);
 	}
 	//if (doMask||doMode) loadRowCol((nVifStruct&)v);
 }
 
 void VifUnpackNEON_Dynarec::doMaskWrite(const vixl::aarch64::VRegister& regX) const
 {
-	pxAssertMsg(regX.GetCode() <= 1, "Reg Overflow! XMM2 thru XMM6 are reserved for masking.");
+	pxAssertMsg(regX.GetCode() <= 1, "Reg Overflow! Q2 thru Q6 are reserved for masking in ARM64 VIF unpack.");
 
 	const int cc = std::min(vCL, 3);
 	u32 m0 = (vB.mask >> (cc * 8)) & 0xff; //The actual mask example 0xE4 (protect, col, row, clear)
@@ -249,12 +249,12 @@ void VifUnpackNEON_Dynarec::doMaskWrite(const vixl::aarch64::VRegister& regX) co
 
 	if (doMask && m2) // Merge MaskRow
 	{
-		mVUmergeRegs(regX, xmmRow, m2);
+		mVUmergeRegs(regX, vifRow, m2);
 	}
 
 	if (doMask && m3) // Merge MaskCol
 	{
-		mVUmergeRegs(regX, armQRegister(xmmCol0.GetCode() + cc), m3);
+		mVUmergeRegs(regX, armQRegister(vifCol0.GetCode() + cc), m3);
 	}
 
 	if (doMode)
@@ -266,31 +266,31 @@ void VifUnpackNEON_Dynarec::doMaskWrite(const vixl::aarch64::VRegister& regX) co
 
 		if (m5 < 0xf)
 		{
-			armAsm->Movi(xmmTemp.V4S(), 0);
+			armAsm->Movi(vifTemp.V4S(), 0);
 			if (doMode == 3)
 			{
-				mVUmergeRegs(xmmRow, regX, m5, false, false);
+				mVUmergeRegs(vifRow, regX, m5, false, false);
 			}
 			else
 			{
-				mVUmergeRegs(xmmTemp, xmmRow, m5, false, false);
-				armAsm->Add(regX.V4S(), regX.V4S(), xmmTemp.V4S());
+				mVUmergeRegs(vifTemp, vifRow, m5, false, false);
+				armAsm->Add(regX.V4S(), regX.V4S(), vifTemp.V4S());
 				if (doMode == 2)
-					mVUmergeRegs(xmmRow, regX, m5, false, false);
+					mVUmergeRegs(vifRow, regX, m5, false, false);
 			}
 		}
 		else
 		{
 			if (doMode == 3)
 			{
-				armAsm->Mov(xmmRow, regX);
+				armAsm->Mov(vifRow, regX);
 			}
 			else
 			{
-				armAsm->Add(regX.V4S(), regX.V4S(), xmmRow.V4S());
+				armAsm->Add(regX.V4S(), regX.V4S(), vifRow.V4S());
 				if (doMode == 2)
 				{
-					armAsm->Mov(xmmRow, regX);
+					armAsm->Mov(vifRow, regX);
 				}
 			}
 		}
@@ -305,7 +305,7 @@ void VifUnpackNEON_Dynarec::doMaskWrite(const vixl::aarch64::VRegister& regX) co
 void VifUnpackNEON_Dynarec::writeBackRow() const
 {
 	const int idx = v.idx;
-	armStorePtr(xmmRow, &(MTVU_VifX.MaskRow));
+	armStorePtr(vifRow, &(MTVU_VifX.MaskRow));
 
 	VIF_LOG("nVif: writing back row reg! [doMode = %d]", doMode);
 }
@@ -366,9 +366,12 @@ void VifUnpackNEON_Dynarec::ModUnpack(int upknum, bool PostOp)
 		case 3:
 		case 7:
 		case 11:
-			// TODO: Needs hardware testing.
-			// Dynasty Warriors 5: Empire  - Player 2 chose a character menu.
-			Console.Warning("Vpu/Vif: Invalid Unpack %d", upknum);
+			// These unpack modes are invalid according to PS2 documentation.
+			// They should never occur in valid VIF commands.
+			// If they do appear, it indicates either corrupted data or an emulator bug.
+			// Dynasty Warriors 5: Empire was known to trigger this in character selection.
+			Console.Warning("Vpu/Vif: Invalid Unpack mode %d encountered - this should not happen in normal operation", upknum);
+			pxAssertMsg(false, "Invalid VIF unpack mode encountered");
 			break;
 	}
 }
@@ -491,7 +494,10 @@ _vifT __fi nVifBlock* dVifCompile(nVifBlock& block, bool isFill)
 
 	VifUnpackNEON_Dynarec(v, block).CompileRoutine();
 
-	Perf::vif.RegisterPC(v.recWritePtr, armGetCurrentCodePointer() - v.recWritePtr, block.upkType /* FIXME ideally a key*/);
+	// Create a unique key for performance profiling based on block parameters
+	// This combines the hash_key, key0, and key1 to uniquely identify the block
+	u64 perf_key = ((u64)block.hash_key << 32) | ((u64)block.key0 ^ block.key1);
+	Perf::vif.RegisterPC(v.recWritePtr, armGetCurrentCodePointer() - v.recWritePtr, perf_key);
 	v.recWritePtr = armEndBlock();
 
 	return &block;
@@ -511,7 +517,7 @@ _vifT __fi void dVifUnpack(const u8* data, bool isFill)
 	// Performance note: initial code was using u8/u16 field of the struct
 	// directly. However reading back the data (as u32) in HashBucket.find
 	// leads to various memory stalls. So it is way faster to manually build the data
-	// in u32 (aka x86 register).
+	// in u32 (aka CPU register).
 	//
 	// Warning the order of data in hash_key/key0/key1 depends on the nVifBlock struct
 	u32 hash_key = (u32)(upkType & 0xFF) << 8 | (vifRegs.num & 0xFF);

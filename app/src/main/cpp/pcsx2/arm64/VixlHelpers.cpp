@@ -350,16 +350,19 @@ bool armIsCallerSaved(int id)
     return (id <= 15);
 #else
     #ifdef _WIN32
-    // The x64 ABI considers the registers RAX, RCX, RDX, R8, R9, R10, R11, and XMM0-XMM5 volatile.
-    return (id <= 2 || (id >= 8 && id <= 11));
+    // The ARM64 Windows ABI considers the registers x0-x7, x8-x15 (temp), x16-x17 (intra-procedure call) volatile.
+    // Callee-saved: x19-x28
+    return (id <= 15);
     #else
-    // rax, rdi, rsi, rdx, rcx, r8, r9, r10, r11 are scratch registers.
-    return (id <= 2 || id == 6 || id == 7 || (id >= 8 && id <= 11));
+    // ARM64 AAPCS64: x0-x7 are parameter/result registers (caller-saved)
+    // x8-x15 are temporary registers (caller-saved)
+    // x16-x17 are intra-procedure call temporary registers (caller-saved)
+    return (id <= 17);
     #endif
 #endif
 }
 
-bool armIsCallerSavedXmm(int id)
+bool armIsCallerSavedVec(int id)
 {
 #if defined(__ANDROID__)
     // vector registers callee saved => d8 ~ d15
@@ -367,11 +370,14 @@ bool armIsCallerSavedXmm(int id)
     return (id < 9);
 #else
     #ifdef _WIN32
-    // XMM6 through XMM15 are saved. Upper 128 bits is always volatile.
-        return (id < 6);
+    // ARM64 Windows ABI: v8-v15 are callee-saved (lower 64 bits), v16-v31 are caller-saved
+    // v0-v7 are parameter/result registers (caller-saved)
+    return (id < 8 || id >= 16);
     #else
-    // All vector registers are volatile.
-    return true;
+    // ARM64 AAPCS64: v0-v7 are parameter/result registers (caller-saved)
+    // v8-v15 are callee-saved (lower 64 bits only)
+    // v16-v31 are temporary registers (caller-saved)
+    return (id < 8 || id >= 16);
     #endif
 #endif
 }

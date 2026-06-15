@@ -44,16 +44,20 @@ void VifUnpackNEON_Base::xShiftR(const vixl::aarch64::VRegister& regX, int n) co
 
 void VifUnpackNEON_Base::xPMOVXX8(const vixl::aarch64::VRegister& regX) const
 {
-	// TODO(Stenzek): Check this
-	armAsm->Ldr(regX.S(), srcIndirect);
+	// Load a single byte and sign/zero extend to 32-bit
+	// This is used for unpacking 8-bit data to 32-bit vectors
+	armAsm->Ldrb(RWVIXLSCRATCH, srcIndirect);
+	armAsm->Mov(regX.B(), 0, RWVIXLSCRATCH);
 
 	if (usn)
 	{
+		// Zero extend: 8-bit -> 16-bit -> 32-bit
 		armAsm->Ushll(regX.V8H(), regX.V8B(), 0);
 		armAsm->Ushll(regX.V4S(), regX.V4H(), 0);
 	}
 	else
 	{
+		// Sign extend: 8-bit -> 16-bit -> 32-bit
 		armAsm->Sshll(regX.V8H(), regX.V8B(), 0);
 		armAsm->Sshll(regX.V4S(), regX.V4H(), 0);
 	}
@@ -345,9 +349,12 @@ void VifUnpackNEON_Base::xUnpack(int upknum) const
 		case 3:
 		case 7:
 		case 11:
-			// TODO: Needs hardware testing.
-			// Dynasty Warriors 5: Empire  - Player 2 chose a character menu.
-			Console.Warning("Vpu/Vif: Invalid Unpack %d", upknum);
+			// These unpack modes are invalid according to PS2 documentation.
+			// They should never occur in valid VIF commands.
+			// If they do appear, it indicates either corrupted data or an emulator bug.
+			// Dynasty Warriors 5: Empire was known to trigger this in character selection.
+			Console.Warning("Vpu/Vif: Invalid Unpack mode %d encountered - this should not happen in normal operation", upknum);
+			pxAssertMsg(false, "Invalid VIF unpack mode encountered");
 			break;
 	}
 }

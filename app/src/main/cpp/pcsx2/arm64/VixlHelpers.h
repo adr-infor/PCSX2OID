@@ -131,7 +131,7 @@ void armEndStackFrame(bool save_fpr=true);
 bool armIsCalleeSavedRegister(int reg);
 
 bool armIsCallerSaved(int id);
-bool armIsCallerSavedXmm(int id);
+bool armIsCallerSavedVec(int id);
 
 a64::MemOperand armOffsetMemOperand(const a64::MemOperand& op, s64 offset);
 void armGetMemOperandInRegister(const a64::Register& addr_reg,

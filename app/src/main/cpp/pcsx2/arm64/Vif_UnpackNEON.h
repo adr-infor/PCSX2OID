@@ -8,12 +8,13 @@
 #include "Vif_Dynarec.h"
 #include "VixlHelpers.h"
 
-#define xmmCol0 vixl::aarch64::q2
-#define xmmCol1 vixl::aarch64::q3
-#define xmmCol2 vixl::aarch64::q4
-#define xmmCol3 vixl::aarch64::q5
-#define xmmRow vixl::aarch64::q6
-#define xmmTemp vixl::aarch64::q7
+// ARM64 vector registers used for VIF unpacking (renamed from xmm for clarity)
+#define vifCol0 vixl::aarch64::q2
+#define vifCol1 vixl::aarch64::q3
+#define vifCol2 vixl::aarch64::q4
+#define vifCol3 vixl::aarch64::q5
+#define vifRow vixl::aarch64::q6
+#define vifTemp vixl::aarch64::q7
 
 // --------------------------------------------------------------------------------------
 //  VifUnpackSSE_Base

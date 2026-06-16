@@ -1070,6 +1070,9 @@ set(pcsx2arm64Sources
 	arm64/iR5900Jump.cpp
 	arm64/iR5900AritImm.cpp
 	arm64/iR5900MultDiv.cpp
+	arm64/iR5900COP0.cpp
+	arm64/iR5900COP1.cpp
+	arm64/iR5900COP2.cpp
 #	arm64/RecStubs.cpp
 	)
 
@@ -1085,6 +1088,9 @@ set(pcsx2arm64Headers
 	arm64/iR5900Jump.h
 	arm64/iR5900AritImm.h
 	arm64/iR5900MultDiv.h
+	arm64/iR5900COP0.h
+	arm64/iR5900COP1.h
+	arm64/iR5900COP2.h
 )
 
 # These ones benefit a lot from LTO

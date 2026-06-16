@@ -18,6 +18,9 @@
 #include "iR5900Jump.h"
 #include "iR5900AritImm.h"
 #include "iR5900MultDiv.h"
+#include "iR5900COP0.h"
+#include "iR5900COP1.h"
+#include "iR5900COP2.h"
 
 #include "common/AlignedMalloc.h"
 #include "common/Perf.h"
@@ -250,9 +253,45 @@ static s32 recExecute(s32 eeCycles)
 	if (!recRAM)
 		return 0;
 
-	// TODO: Implement full execution loop
-	// For now, just use interpreter
-	return intCpu.ExecuteBlock(eeCycles);
+	// Execute recompiled code
+	eeCpuExecuting = true;
+	
+	while (eeCpuExecuting)
+	{
+		// Get the current block
+		BASEBLOCK* pblock = PC_GETBLOCK(cpuRegs.pc);
+		
+		// If the block is not recompiled, recompile it
+		if (pblock->GetFnptr() == (uptr)JITCompile)
+		{
+			recRecompile(cpuRegs.pc);
+			pblock = PC_GETBLOCK(cpuRegs.pc);
+		}
+		
+		// Execute the recompiled block
+		// Cast the function pointer to the correct type and call it
+		typedef void (*RecBlockFunc)();
+		RecBlockFunc func = (RecBlockFunc)pblock->GetFnptr();
+		
+		if (func)
+		{
+			func();
+		}
+		else
+		{
+			// Fallback to interpreter if block is not available
+			intCpu.ExecuteBlock();
+		}
+		
+		// Check for exit request
+		if (eeRecExitRequested)
+		{
+			eeCpuExecuting = false;
+		}
+	}
+	
+	eeRecExitRequested = false;
+	return eeCycles;
 }
 
 static s32 recStep()
@@ -394,6 +433,9 @@ static void recRecompile(const u32 startpc)
 	g_cpuHasConstReg = 0;
 	g_cpuFlushedConstReg = 0;
 	std::memset(g_cpuConstRegs, 0, sizeof(g_cpuConstRegs));
+	g_cpuConstRegs[0].UD[0] = 0; // R0 is always 0
+	g_cpuHasConstReg |= 1; // Mark R0 as constant
+	g_cpuFlushedConstReg |= 1; // Mark R0 as flushed
 
 	// Initialize register allocation
 	_initArm64regs();
@@ -403,11 +445,12 @@ static void recRecompile(const u32 startpc)
 	armAsm->Reset();
 	
 	u32 pc = startpc;
-	u32 targetpc = startpc;
+	u32 s_nEndBlock = startpc + 1000; // Simple block size limit
 	int branch = 0;
 	bool recompiling = true;
 
-	while (recompiling)
+	// Simple loop to recompile instructions
+	while (pc < s_nEndBlock && recompiling)
 	{
 		// Check if we have enough space
 		if (recPtr >= recPtrEnd - 0x10000)
@@ -418,23 +461,129 @@ static void recRecompile(const u32 startpc)
 		}
 
 		// Get instruction
-		u32 code = memRead32(pc);
-		u32 opcode = code >> 26;
+		cpuRegs.code = memRead32(pc);
+		u32 opcode = cpuRegs.code >> 26;
 
-		// Dispatch to appropriate recompiler
-		// For now, this is a simplified version
-		// A full implementation would use the opcode table
+		// Dispatch to appropriate recompiler function
+		// This is a simplified dispatch - a full implementation would use the opcode table
+		switch (opcode)
+		{
+			case 0: // SPECIAL
+				{
+					u32 funct = cpuRegs.code & 0x3F;
+					switch (funct)
+					{
+						case 0x20: recADD(0); break;
+						case 0x21: recADDU(0); break;
+						case 0x22: recSUB(0); break;
+						case 0x23: recSUBU(0); break;
+						case 0x24: recAND(0); break;
+						case 0x25: recOR(0); break;
+						case 0x26: recXOR(0); break;
+						case 0x27: recNOR(0); break;
+						case 0x2A: recSLT(0); break;
+						case 0x2B: recSLTU(0); break;
+						case 0x00: recSLL(0); break;
+						case 0x02: recSRL(0); break;
+						case 0x03: recSRA(0); break;
+						case 0x04: recSLLV(0); break;
+						case 0x06: recSRLV(0); break;
+						case 0x07: recSRAV(0); break;
+						case 0x08: recJR(0); branch = 1; break;
+						case 0x09: recJALR(0); branch = 1; break;
+						case 0x10: recMFHI(0); break;
+						case 0x11: recMTHI(0); break;
+						case 0x12: recMFLO(0); break;
+						case 0x13: recMTLO(0); break;
+						case 0x18: recMULT(0); break;
+						case 0x19: recMULTU(0); break;
+						case 0x1A: recDIV(0); break;
+						case 0x1B: recDIVU(0); break;
+						default: recCall(Interp::UNKNOWN); break;
+					}
+				}
+				break;
+			case 1: // REGIMM
+				{
+					u32 rt = (cpuRegs.code >> 16) & 0x1F;
+					switch (rt)
+					{
+						case 0x00: recBLTZ(0); branch = 1; break;
+						case 0x01: recBGEZ(0); branch = 1; break;
+						case 0x02: recBLTZL(0); branch = 1; break;
+						case 0x03: recBGEZL(0); branch = 1; break;
+						default: recCall(Interp::UNKNOWN); break;
+					}
+				}
+				break;
+			case 2: recJ(0); branch = 1; break;
+			case 3: recJAL(0); branch = 1; break;
+			case 4: recBEQ(0); branch = 1; break;
+			case 5: recBNE(0); branch = 1; break;
+			case 6: recBLEZ(0); branch = 1; break;
+			case 7: recBGTZ(0); branch = 1; break;
+			case 8: recDADDI(0); break;
+			case 9: recDADDIU(0); break;
+			case 10: recCall(Interp::UNKNOWN); break; // TLB
+			case 11: recCall(Interp::UNKNOWN); break; // TLB
+			case 12: recCall(Interp::UNKNOWN); break; // TLB
+			case 13: recCall(Interp::UNKNOWN); break; // TLB
+			case 14: recCall(Interp::UNKNOWN); break; // TLB
+			case 15: recLUI(0); break;
+			case 16: recMFC0(0); break; // COP0
+			case 17: recMFC1(0); break; // COP1
+			case 18: recMFC2(0); break; // COP2
+			case 20: recBEQL(0); branch = 1; break;
+			case 21: recBNEL(0); branch = 1; break;
+			case 22: recBLEZL(0); branch = 1; break;
+			case 23: recBGTZL(0); branch = 1; break;
+			case 24: recDADDI(0); break;
+			case 25: recDADDIU(0); break;
+			case 26: recLDL(0); break;
+			case 27: recLDR(0); break;
+			case 28: recCall(Interp::UNKNOWN); break; // TLB
+			case 29: recCall(Interp::UNKNOWN); break; // TLB
+			case 30: recCall(Interp::UNKNOWN); break; // TLB
+			case 31: recCall(Interp::UNKNOWN); break; // TLB
+			case 32: recLB(0); break;
+			case 33: recLH(0); break;
+			case 34: recLWL(0); break;
+			case 35: recLW(0); break;
+			case 36: recLBU(0); break;
+			case 37: recLHU(0); break;
+			case 38: recLWR(0); break;
+			case 39: recLWU(0); break;
+			case 40: recSB(0); break;
+			case 41: recSH(0); break;
+			case 42: recSWL(0); break;
+			case 43: recSW(0); break;
+			case 44: recSDL(0); break;
+			case 45: recSDR(0); break;
+			case 46: recSWR(0); break;
+			case 47: recCACHE(0); break;
+			case 48: recLL(0); break;
+			case 49: recLWC1(0); break;
+			case 50: recLWC2(0); break;
+			case 51: recPREF(0); break;
+			case 52: recLD(0); break;
+			case 53: recLDC1(0); break;
+			case 54: recLDC2(0); break;
+			case 55: recLD(0); break;
+			case 56: recSC(0); break;
+			case 57: recSWC1(0); break;
+			case 58: recSWC2(0); break;
+			case 59: recCall(Interp::UNKNOWN); break;
+			case 60: recSD(0); break;
+			case 61: recSDC1(0); break;
+			case 62: recSDC2(0); break;
+			case 63: recSD(0); break;
+			default: recCall(Interp::UNKNOWN); break;
+		}
 		
 		pc += 4;
 
 		// Simple block termination conditions
 		if (branch != 0)
-		{
-			recompiling = false;
-		}
-		
-		// Limit block size
-		if ((pc - startpc) > 1000)
 		{
 			recompiling = false;
 		}
@@ -448,7 +597,8 @@ static void recRecompile(const u32 startpc)
 	armEmitJmp(DispatcherReg);
 
 	// Update block info
-	// TODO: Implement proper block metadata update
+	// Set the block function pointer to the start of the recompiled code
+	s_pCurBlock->SetFnptr((uptr)recPtr);
 }
 
 static void dyna_block_discard(u32 start, u32 sz)
@@ -527,8 +677,44 @@ void recDIVU(int info) { R5900::Dynarec::OpcodeImpl::recDIVU(info); }
 void recDDIV(int info) { R5900::Dynarec::OpcodeImpl::recDDIV(info); }
 void recDDIVU(int info) { R5900::Dynarec::OpcodeImpl::recDDIVU(info); }
 
-void recMFC0(int info) { REC_FUNC_DEL(MFC0, _Rt_); }
-void recMTC0(int info) { REC_FUNC(MTC0); }
+void recLUI(int info) { REC_FUNC_DEL(LUI, _Rt_); }
+void recCACHE(int info) { REC_FUNC(CACHE); }
+void recLL(int info) { REC_FUNC(LL); }
+void recLWC1(int info) { REC_FUNC_DEL(LWC1, _Ft_); }
+void recLWC2(int info) { REC_FUNC_DEL(LWC2, _Rt_); }
+void recPREF(int info) { REC_FUNC(PREF); }
+void recLDC1(int info) { REC_FUNC_DEL(LDC1, _Ft_); }
+void recLDC2(int info) { REC_FUNC_DEL(LDC2, _Rt_); }
+void recSC(int info) { REC_FUNC(SC); }
+void recSWC1(int info) { REC_FUNC_DEL(SWC1, _Ft_); }
+void recSWC2(int info) { REC_FUNC(SWC2); }
+void recSDC1(int info) { REC_FUNC_DEL(SDC1, _Ft_); }
+void recSDC2(int info) { REC_FUNC(SDC2); }
+void recLWU(int info) { REC_FUNC(LWU); }
+
+void recMFC0(int info) { R5900::Dynarec::OpcodeImpl::recMFC0(info); }
+void recMTC0(int info) { R5900::Dynarec::OpcodeImpl::recMTC0(info); }
+void recCFC0(int info) { R5900::Dynarec::OpcodeImpl::recCFC0(info); }
+void recCTC0(int info) { R5900::Dynarec::OpcodeImpl::recCTC0(info); }
+void recERET(int info) { R5900::Dynarec::OpcodeImpl::recERET(info); }
+
+void recMFC1(int info) { R5900::Dynarec::OpcodeImpl::recMFC1(info); }
+void recMTC1(int info) { R5900::Dynarec::OpcodeImpl::recMTC1(info); }
+void recCFC1(int info) { R5900::Dynarec::OpcodeImpl::recCFC1(info); }
+void recCTC1(int info) { R5900::Dynarec::OpcodeImpl::recCTC1(info); }
+void recLWC1(int info) { R5900::Dynarec::OpcodeImpl::recLWC1(info); }
+void recSWC1(int info) { R5900::Dynarec::OpcodeImpl::recSWC1(info); }
+void recLDC1(int info) { R5900::Dynarec::OpcodeImpl::recLDC1(info); }
+void recSDC1(int info) { R5900::Dynarec::OpcodeImpl::recSDC1(info); }
+
+void recMFC2(int info) { R5900::Dynarec::OpcodeImpl::recMFC2(info); }
+void recMTC2(int info) { R5900::Dynarec::OpcodeImpl::recMTC2(info); }
+void recCFC2(int info) { R5900::Dynarec::OpcodeImpl::recCFC2(info); }
+void recCTC2(int info) { R5900::Dynarec::OpcodeImpl::recCTC2(info); }
+void recLWC2(int info) { R5900::Dynarec::OpcodeImpl::recLWC2(info); }
+void recSWC2(int info) { R5900::Dynarec::OpcodeImpl::recSWC2(info); }
+void recLDC2(int info) { R5900::Dynarec::OpcodeImpl::recLDC2(info); }
+void recSDC2(int info) { R5900::Dynarec::OpcodeImpl::recSDC2(info); }
 
 void recBEQ(int info) { R5900::Dynarec::OpcodeImpl::recBEQ(info); }
 void recBNE(int info) { R5900::Dynarec::OpcodeImpl::recBNE(info); }
